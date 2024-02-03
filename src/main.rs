@@ -1,10 +1,11 @@
-use wordle_solver::algorithms::Naive;
+use wordle_solver::{algorithms::Naive, Wordle};
 
 const GAMES: &str = include_str!("../data/answers.txt");
 
 fn main() {
-    for answer in GAMES.split_whitespace() {
+    let wordle = Wordle::new();
+    for answer in GAMES.lines() {
         let guesser = Naive::new();
-        wordle_solver::play(answer, guesser);
+        wordle.play(answer, guesser);
     }
 }

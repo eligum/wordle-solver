@@ -12,28 +12,33 @@ pub struct Wordle {
 impl Wordle {
     pub fn new() -> Self {
         Self {
-            dictionary: HashSet::from_iter(DICTIONARY.lines())
+            dictionary: HashSet::from_iter(DICTIONARY.lines()),
         }
     }
-}
 
-/// Play the game infinitely until the guesser guessess the correct word.
-pub fn play<G: Guesser>(answer: &str, mut guesser: G) -> Option<usize> {
-    let mut history = Vec::new();
-    // Wordle only allows siz guesses.
-    // We allow more to avoid choping off the score distribution for stats purposes.
-    for i in 1..=MAX_GUESSES {
-        let guess = guesser.guess(&history[..]);
-        if guess == answer {
-            return Some(i);
+    /// Play the game infinitely until the guesser guessess the correct word.
+    pub fn play<G: Guesser>(&self, answer: &str, mut guesser: G) -> Option<usize> {
+        let mut history = Vec::new();
+        // Wordle only allows siz guesses.
+        // We allow more to avoid choping off the score distribution for stats purposes.
+        for i in 1..=MAX_GUESSES {
+            let guess = guesser.guess(&history[..]);
+            if guess == answer {
+                return Some(i);
+            }
+            assert!(
+                self.dictionary.contains(&*guess),
+                "guess '{}' is not in the dictionary",
+                guess
+            );
+            let correctness = Correctness::compute(answer, &guess);
+            history.push(Guess {
+                word: guess,
+                mask: correctness,
+            });
         }
-        let correctness = Correctness::compute(answer, &guess);
-        history.push(Guess {
-            word: guess,
-            mask: correctness,
-        });
+        None
     }
-    None
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -68,7 +73,6 @@ impl Correctness {
         }
         for (i, g) in guess.chars().enumerate() {
             if cor[i] == Correctness::Correct {
-                // Already marked as green
                 continue;
             }
             if answer.chars().enumerate().any(|(i, a)| {
@@ -94,8 +98,23 @@ pub trait Guesser {
     fn guess(&mut self, history: &[Guess]) -> String;
 }
 
+impl Guesser for fn(history: &[Guess]) -> String {
+    fn guess(&mut self, history: &[Guess]) -> String {
+        (*self)(history)
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    mod game {
+        use crate::Wordle;
+
+        #[test]
+        fn play() {
+            let wordle = Wordle::new();
+        }
+    }
+
     mod compute {
         use crate::Correctness;
 
@@ -110,50 +129,32 @@ mod tests {
 
         #[test]
         fn all_green() {
-            assert_eq!(
-                Correctness::compute("abcde", "abcde"),
-                mask![C C C C C]
-            );
+            assert_eq!(Correctness::compute("abcde", "abcde"), mask![C C C C C]);
         }
 
         #[test]
         fn all_yellow() {
-            assert_eq!(
-                Correctness::compute("abcde", "bcdea"),
-                mask![M M M M M]
-            );
+            assert_eq!(Correctness::compute("abcde", "bcdea"), mask![M M M M M]);
         }
 
         #[test]
         fn all_gray() {
-            assert_eq!(
-                Correctness::compute("abcde", "fghij"),
-                mask![W W W W W]
-            );
+            assert_eq!(Correctness::compute("abcde", "fghij"), mask![W W W W W]);
         }
 
         #[test]
         fn repeat_green() {
-            assert_eq!(
-                Correctness::compute("aabbb", "aaccc"),
-                mask![C C W W W]
-            );
+            assert_eq!(Correctness::compute("aabbb", "aaccc"), mask![C C W W W]);
         }
 
         #[test]
         fn repeat_yellow() {
-            assert_eq!(
-                Correctness::compute("aabbb", "ccaac"),
-                mask![W W M M W]
-            );
+            assert_eq!(Correctness::compute("aabbb", "ccaac"), mask![W W M M W]);
         }
 
         #[test]
         fn repeat_some_green() {
-            assert_eq!(
-                Correctness::compute("aabbb", "acaac"),
-                mask![C W M W W]
-            );
+            assert_eq!(Correctness::compute("aabbb", "acaac"), mask![C W M W W]);
         }
     }
 }
